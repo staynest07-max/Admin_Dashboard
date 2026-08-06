@@ -1,0 +1,6 @@
+{
+  "name": "PG Merchant Dashboard",
+  "description": "Comprehensive PG Owner Dashboard for managing PG listings, availability, enquiries, tenant visits, reviews, notifications, and merchant profile.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
