@@ -1,0 +1,2 @@
+import type{PgStatus}from'../../contracts/merchantPg';export type AdminPgAction='approve'|'reject'|'requestChanges'|'suspend';export const adminPgActions=(status:PgStatus):AdminPgAction[]=>status==='PENDING_REVIEW'?['approve','reject','requestChanges']:status==='LIVE'?['suspend']:[];
+export const validateReviewReason=(value:string)=>{const reason=value.trim();return reason.length<3?'Reason must contain at least 3 characters.':reason.length>2000?'Reason must not exceed 2000 characters.':null};

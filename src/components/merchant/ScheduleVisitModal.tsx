@@ -34,7 +34,7 @@ export const ScheduleVisitModal: React.FC<ScheduleVisitModalProps> = ({
       pgName,
       visitDate,
       visitTime,
-      status: 'Confirmed',
+      status: 'CONFIRMED',
       category: 'Upcoming',
       notes
     };

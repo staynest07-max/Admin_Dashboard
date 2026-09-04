@@ -192,7 +192,7 @@ export const INITIAL_ENQUIRIES: EnquiryItem[] = [
     pgName: 'ZenStays Orchid Luxury PG',
     roomType: 'Single Sharing',
     moveInDate: '10 Aug 2026',
-    status: 'VISIT SCHEDULED',
+    status: 'VISIT_SCHEDULED',
     createdDate: '2026-07-25 11:30 AM',
     notes: 'Visit scheduled for 28 July at 4:00 PM.'
   },
@@ -205,7 +205,7 @@ export const INITIAL_ENQUIRIES: EnquiryItem[] = [
     pgName: 'ZenStays Orchid Luxury PG',
     roomType: 'Double Sharing',
     moveInDate: '01 Aug 2026',
-    status: 'BOOKED',
+    status: 'CLOSED',
     createdDate: '2026-07-24 02:15 PM',
     notes: 'Token deposit paid. Checking in on 1st August.'
   },
@@ -246,7 +246,7 @@ export const INITIAL_VISITS: VisitItem[] = [
     pgName: 'ZenStays Orchid Luxury PG',
     visitDate: '2026-07-27',
     visitTime: '04:00 PM',
-    status: 'Confirmed',
+    status: 'CONFIRMED',
     category: 'Today',
     notes: 'Wants to view Single Sharing room with attached balcony.'
   },
@@ -258,7 +258,7 @@ export const INITIAL_VISITS: VisitItem[] = [
     pgName: 'Royal Oak Men’s Executive PG',
     visitDate: '2026-07-27',
     visitTime: '06:30 PM',
-    status: 'Pending',
+    status: 'REQUESTED',
     category: 'Today',
     notes: 'Interested in 2 Sharing room.'
   },
@@ -270,7 +270,7 @@ export const INITIAL_VISITS: VisitItem[] = [
     pgName: "Sunrise Women's PG",
     visitDate: '2026-07-28',
     visitTime: '11:30 AM',
-    status: 'Confirmed',
+    status: 'CONFIRMED',
     category: 'Upcoming',
     notes: 'Coming with mother to view premises.'
   },
@@ -282,7 +282,7 @@ export const INITIAL_VISITS: VisitItem[] = [
     pgName: 'ZenStays Orchid Luxury PG',
     visitDate: '2026-07-26',
     visitTime: '02:00 PM',
-    status: 'Completed',
+    status: 'COMPLETED',
     category: 'Completed',
     notes: 'Visited room 202. Decided to book.'
   },
@@ -294,7 +294,7 @@ export const INITIAL_VISITS: VisitItem[] = [
     pgName: 'Royal Oak Men’s Executive PG',
     visitDate: '2026-07-25',
     visitTime: '05:00 PM',
-    status: 'Cancelled',
+    status: 'CANCELLED',
     category: 'Cancelled',
     notes: 'Cancelled due to rain.'
   }

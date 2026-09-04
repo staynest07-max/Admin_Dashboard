@@ -1,23 +1,14 @@
 import React, { useState } from 'react';
 import { Building2, Phone, ArrowRight, ShieldCheck } from 'lucide-react';
+import { useRequestOtp, useVerifyOtp, authMessage } from '../../features/auth/hooks/useAuth';
+import { normalizePhone, validOtp, validPhone } from '../../features/auth/validation';
 
 interface LoginPageProps {
-  onLoginSuccess: (ownerName: string, phone: string) => void;
   onGoToSignup: () => void;
 }
 
-const DEMO_OTP = '123456';
-
 function digitsOnly(value: string) {
   return value.replace(/\D/g, '');
-}
-
-function isValidIndianMobile(phone: string) {
-  const digits = digitsOnly(phone);
-  // Allow 10-digit Indian mobile, or with country code 91
-  if (digits.length === 10) return /^[6-9]/.test(digits);
-  if (digits.length === 12 && digits.startsWith('91')) return /^91[6-9]/.test(digits);
-  return false;
 }
 
 function formatPhoneDisplay(phone: string) {
@@ -30,33 +21,35 @@ function formatPhoneDisplay(phone: string) {
   return phone.trim();
 }
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onGoToSignup }) => {
+export const LoginPage: React.FC<LoginPageProps> = ({ onGoToSignup }) => {
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
-  const [phone, setPhone] = useState('9876543210');
+  const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
   const [otpSentHint, setOtpSentHint] = useState(false);
+  const requestOtp = useRequestOtp();
+  const verifyOtp = useVerifyOtp();
 
-  const handleSendOtp = (e: React.FormEvent) => {
+  const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!isValidIndianMobile(phone)) {
+    if (!validPhone(phone)) {
       setError('Enter a valid 10-digit mobile number.');
       return;
     }
-    setStep('otp');
-    setOtpSentHint(true);
-    setOtp('');
+    try { await requestOtp.mutateAsync(normalizePhone(phone)); setStep('otp'); setOtpSentHint(true); setOtp(''); }
+    catch (reason) { setError(authMessage(reason)); }
   };
 
-  const handleVerifyOtp = (e: React.FormEvent) => {
+  const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (otp.trim() !== DEMO_OTP) {
-      setError(`Invalid OTP. Use demo OTP ${DEMO_OTP}.`);
+    if (!validOtp(otp)) {
+      setError('Enter the OTP sent to your registered mobile number.');
       return;
     }
-    onLoginSuccess('John Doe', formatPhoneDisplay(phone));
+    try { await verifyOtp.mutateAsync({ phone: normalizePhone(phone), otp }); }
+    catch (reason) { setError(authMessage(reason)); }
   };
 
   return (
@@ -142,7 +135,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onGoToSign
 
               {otpSentHint && (
                 <p className="text-[11px] text-[#5DA271] font-semibold bg-[#E8F5EC] px-3 py-2 rounded-xl">
-                  OTP sent (demo). Use <span className="font-number">{DEMO_OTP}</span> to continue.
+                  OTP sent. Check your registered authentication channel.
                 </p>
               )}
 

@@ -1,0 +1,1 @@
+export const queryKeys={auth:{all:['auth']as const,me:()=>['auth','me']as const},merchant:{all:['merchant']as const},admin:{all:['admin']as const,accounts:['admin-accounts']as const,merchants:['admin-merchants']as const},pgs:{all:['pgs']as const},enquiries:{all:['enquiries']as const},visits:{all:['visits']as const},notifications:{all:['notifications']as const}};
