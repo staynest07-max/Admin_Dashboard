@@ -1,0 +1,1 @@
+export function validateLifecycleReason(value:string):string|null{const length=value.trim().length;if(length<3)return'Reason must contain at least 3 characters.';if(length>2000)return'Reason cannot exceed 2000 characters.';return null}

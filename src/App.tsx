@@ -14,55 +14,62 @@ import { NotificationsView } from './components/merchant/NotificationsView';
 import { ProfileView } from './components/merchant/ProfileView';
 import { ThreeStepOnboarding } from './components/onboarding/ThreeStepOnboarding';
 import { LoginPage } from './components/auth/LoginPage';
-import { SignupPage } from './components/auth/SignupPage';
-import { ScheduleVisitModal } from './components/merchant/ScheduleVisitModal';
 import { WhatsAppModal } from './components/merchant/WhatsAppModal';
 import { PGDetailModal } from './components/merchant/PGDetailModal';
 
 import { 
-  INITIAL_PG_LISTINGS, 
-  INITIAL_ENQUIRIES, 
-  INITIAL_VISITS, 
   INITIAL_REVIEWS, 
-  INITIAL_NOTIFICATIONS, 
   INITIAL_MERCHANT_PROFILE 
 } from './data/merchantDashboardData';
 
 import { 
   PGListing, 
   EnquiryItem, 
-  VisitItem, 
   MerchantReview, 
-  MerchantNotification, 
-  PGRoomAvailability,
   DashboardTab,
-  EnquiryStatus,
-  VisitStatus,
-  VisitCategory
 } from './types/merchant';
 
 import { Sparkles } from 'lucide-react';
+import { useInitializeAuth, useLogout } from './features/auth/hooks/useAuth';
+import { useAuthStore } from './stores/authStore';
+import { useMerchantPgs, usePauseMerchantPg, useResumeMerchantPg, useSubmitMerchantPg } from './features/merchantPgs/hooks/useMerchantPgs';
+import { toLegacyPg } from './features/merchantPgs/mapper';
+import type { MerchantPg } from './contracts/merchantPg';
+import { useMerchantEnquiries } from './features/merchantEnquiries/hooks/useMerchantEnquiries';
+import { toEnquiryItem } from './features/merchantEnquiries/mapper';
+import { useMerchantVisits } from './features/merchantVisits/hooks/useMerchantVisits';
+import { toVisitItem } from './features/merchantVisits/mapper';
+import { useMerchantNotifications, useMerchantUnreadCount } from './features/merchantNotifications/hooks/useMerchantNotifications';
+import { toLegacyNotification } from './features/merchantNotifications/mapper';
+import { AdminApp } from './components/admin/AdminApp';
 
-export default function App() {
+function DashboardApp() {
   // Navigation State
   const [activeTab, setActiveTab] = useState<DashboardTab>('login');
 
   // Auth & Onboarding State
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
-  const [authView, setAuthView] = useState<'login' | 'signup'>('login');
+  const logout = useLogout();
 
   // Main Merchant State
-  const [pgListings, setPgListings] = useState<PGListing[]>(INITIAL_PG_LISTINGS);
-  const [enquiries, setEnquiries] = useState<EnquiryItem[]>(INITIAL_ENQUIRIES);
-  const [visits, setVisits] = useState<VisitItem[]>(INITIAL_VISITS);
+  const pgQuery = useMerchantPgs();
+  const realPgs = pgQuery.data ?? [];
+  const pgListings = useMemo(() => realPgs.map(toLegacyPg), [realPgs]);
+  const submitPg = useSubmitMerchantPg();
+  const pausePg = usePauseMerchantPg();
+  const resumePg = useResumeMerchantPg();
+  const enquiryQuery = useMerchantEnquiries();
+  const enquiries = useMemo(() => (enquiryQuery.data ?? []).map(toEnquiryItem), [enquiryQuery.data]);
+  const visitQuery = useMerchantVisits();
+  const visits = useMemo(() => (visitQuery.data ?? []).map(toVisitItem), [visitQuery.data]);
   const [reviews, setReviews] = useState<MerchantReview[]>(INITIAL_REVIEWS);
-  const [notifications, setNotifications] = useState<MerchantNotification[]>(INITIAL_NOTIFICATIONS);
+  const notificationQuery = useMerchantNotifications({ page: 1, limit: 4 });
+  const notifications = useMemo(() => (notificationQuery.data?.items ?? []).map(toLegacyNotification), [notificationQuery.data]);
+  const unreadQuery = useMerchantUnreadCount();
   const [profile, setProfile] = useState(INITIAL_MERCHANT_PROFILE);
 
   // Modals
-  const [selectedDetailPG, setSelectedDetailPG] = useState<PGListing | null>(null);
-  const [isScheduleVisitOpen, setIsScheduleVisitOpen] = useState(false);
-  const [scheduleVisitEnquiry, setScheduleVisitEnquiry] = useState<EnquiryItem | null>(null);
+  const [selectedDetailPG, setSelectedDetailPG] = useState<MerchantPg | null>(null);
+  const [editingPG, setEditingPG] = useState<MerchantPg | null>(null);
   const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false);
   const [whatsAppEnquiry, setWhatsAppEnquiry] = useState<EnquiryItem | null>(null);
 
@@ -75,9 +82,7 @@ export default function App() {
   };
 
   // Badges calculations
-  const unreadNotificationsCount = useMemo(() => {
-    return notifications.filter((n) => !n.read).length;
-  }, [notifications]);
+  const unreadNotificationsCount = unreadQuery.data?.count ?? 0;
 
   const newEnquiriesCount = useMemo(() => {
     return enquiries.filter((e) => e.status === 'NEW').length;
@@ -88,84 +93,6 @@ export default function App() {
   }, [visits]);
 
   // Handlers for PG Listings
-  const handleAddPGListing = (newPG: PGListing) => {
-    setPgListings((prev) => [newPG, ...prev]);
-    showToast(`PG Listing "${newPG.name}" added successfully!`);
-  };
-
-  const handleTogglePausePG = (pgId: string) => {
-    setPgListings((prev) =>
-      prev.map((p) => {
-        if (p.id === pgId) {
-          const newStatus = p.status === 'Paused' ? 'Live' : 'Paused';
-          showToast(`Listing status updated to ${newStatus}`);
-          return { ...p, status: newStatus as any };
-        }
-        return p;
-      })
-    );
-  };
-
-  const handleDeletePG = (pgId: string) => {
-    if (confirm('Are you sure you want to delete this PG listing?')) {
-      setPgListings((prev) => prev.filter((p) => p.id !== pgId));
-      showToast('PG Listing deleted');
-    }
-  };
-
-  const handleSaveDetailPG = (updatedPG: PGListing) => {
-    setPgListings((prev) => prev.map((p) => (p.id === updatedPG.id ? updatedPG : p)));
-    setSelectedDetailPG(null);
-    showToast('PG Listing details updated');
-  };
-
-  // Handlers for Enquiries
-  const handleUpdateEnquiryStatus = (id: string, newStatus: EnquiryStatus) => {
-    setEnquiries((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, status: newStatus } : e))
-    );
-    showToast(`Enquiry status set to ${newStatus}`);
-  };
-
-  // Handlers for Visits
-  const handleUpdateVisitStatus = (id: string, newStatus: VisitStatus, category?: VisitCategory) => {
-    setVisits((prev) =>
-      prev.map((v) => {
-        if (v.id === id) {
-          return {
-            ...v,
-            status: newStatus,
-            category: category || v.category
-          };
-        }
-        return v;
-      })
-    );
-    showToast(`Visit status updated to ${newStatus}`);
-  };
-
-  const handleScheduleVisit = (newVisit: VisitItem) => {
-    setVisits((prev) => [newVisit, ...prev]);
-    showToast(`Visit scheduled for ${newVisit.visitorName}`);
-  };
-
-  // Availability Update
-  const handleUpdateAvailability = (pgId: string, updatedAvailability: PGRoomAvailability[]) => {
-    setPgListings((prev) =>
-      prev.map((p) => {
-        if (p.id === pgId) {
-          const totalAvail = updatedAvailability.reduce((acc, curr) => acc + curr.availableBeds, 0);
-          return {
-            ...p,
-            availableBeds: totalAvail,
-            roomAvailability: updatedAvailability
-          };
-        }
-        return p;
-      })
-    );
-    showToast('Bed availability updated');
-  };
 
   // Reviews Actions
   const handleReplyToReview = (reviewId: string, replyText: string) => {
@@ -179,65 +106,10 @@ export default function App() {
     showToast('Review reported to Admin moderation');
   };
 
-  // Notifications Actions
-  const handleMarkAllAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    showToast('All notifications marked as read');
-  };
-
-  const handleMarkSingleAsRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
-  };
-
-  const handleClearNotifications = () => {
-    setNotifications([]);
-    showToast('Notifications cleared');
-  };
-
   // Phone Call
   const handleCallTenant = (phone: string) => {
     window.location.href = `tel:${phone.replace(/[^0-9+]/g, '')}`;
   };
-
-  if (!isLoggedIn) {
-    if (authView === 'signup') {
-      return (
-        <SignupPage
-          onGoToLogin={() => setAuthView('login')}
-          onSignupSuccess={(data) => {
-            setProfile((prev) => ({
-              ...prev,
-              name: data.fullName,
-              businessName: data.businessName,
-              mobileNumber: data.phone,
-              email: data.email || prev.email,
-            }));
-            setIsLoggedIn(true);
-            setActiveTab('onboarding');
-            showToast(`Welcome, ${data.fullName}! Let's finish onboarding.`);
-          }}
-        />
-      );
-    }
-
-    return (
-      <LoginPage
-        onGoToSignup={() => setAuthView('signup')}
-        onLoginSuccess={(name, phone) => {
-          setIsLoggedIn(true);
-          setProfile((prev) => ({
-            ...prev,
-            name,
-            mobileNumber: phone || prev.mobileNumber,
-          }));
-          setActiveTab('dashboard');
-          showToast(`Welcome back, ${name}!`);
-        }}
-      />
-    );
-  }
 
   return (
     <div className="min-h-screen bg-[#FAF8F4] text-[#2F3A35] flex flex-col font-sans antialiased selection:bg-[#D8C29B] selection:text-[#2F3A35]">
@@ -253,12 +125,8 @@ export default function App() {
         merchantName={profile.name}
         businessName={profile.businessName}
         profilePhoto={profile.profilePhoto}
-        isLoggedIn={isLoggedIn}
-        onLogout={() => {
-          setIsLoggedIn(false);
-          setAuthView('login');
-          setActiveTab('login');
-        }}
+        isLoggedIn
+        onLogout={() => logout.mutate()}
         onRestartOnboarding={() => {
           setActiveTab('onboarding');
         }}
@@ -320,31 +188,29 @@ export default function App() {
             visits={visits}
             notifications={notifications}
             onSelectTab={(tab) => setActiveTab(tab)}
-            onOpenScheduleVisitModal={() => {
-              setScheduleVisitEnquiry(null);
-              setIsScheduleVisitOpen(true);
-            }}
+            onOpenScheduleVisitModal={() => setActiveTab('visits')}
             onOpenAddPG={() => setActiveTab('add-pg')}
           />
         )}
 
         {activeTab === 'my-pgs' && (
           <MyPGsView
-            pgListings={pgListings}
-            onSelectTab={(tab) => setActiveTab(tab)}
-            onViewPG={(pg) => setSelectedDetailPG(pg)}
-            onEditPG={(pg) => setSelectedDetailPG(pg)}
-            onManageRooms={(pg) => setSelectedDetailPG(pg)}
-            onUpdateAvailabilityPG={(pg) => setActiveTab('availability')}
-            onTogglePausePG={handleTogglePausePG}
-            onDeletePG={handleDeletePG}
+            pgs={realPgs} loading={pgQuery.isPending}
+            error={pgQuery.isError ? 'Check your connection and try again.' : undefined}
+            onRetry={() => void pgQuery.refetch()} onAdd={() => { setEditingPG(null); setActiveTab('add-pg'); }}
+            onView={setSelectedDetailPG} onEdit={(pg) => { setEditingPG(pg); setActiveTab('add-pg'); }}
+            onSubmit={(id) => submitPg.mutate(id, { onSuccess: () => showToast('PG submitted for review') })}
+            onPause={(id) => pausePg.mutate(id, { onSuccess: () => showToast('PG paused') })}
+            onResume={(id) => resumePg.mutate(id, { onSuccess: () => showToast('PG resumed') })}
+            busy={submitPg.isPending || pausePg.isPending || resumePg.isPending}
           />
         )}
 
         {activeTab === 'add-pg' && (
           <AddNewPGWizard
-            onSelectTab={(tab) => setActiveTab(tab)}
-            onAddPGListing={handleAddPGListing}
+            initial={editingPG ?? undefined}
+            onCancel={() => { setEditingPG(null); setActiveTab('my-pgs'); }}
+            onDone={() => { setEditingPG(null); setActiveTab('my-pgs'); showToast('PG saved successfully'); }}
           />
         )}
 
@@ -386,46 +252,14 @@ export default function App() {
         )}
 
         {activeTab === 'enquiries' && (
-          <EnquiriesView
-            enquiries={enquiries}
-            onUpdateEnquiryStatus={handleUpdateEnquiryStatus}
-            onOpenScheduleVisit={(enq) => {
-              setScheduleVisitEnquiry(enq);
-              setIsScheduleVisitOpen(true);
-            }}
-            onOpenWhatsApp={(enq) => {
-              setWhatsAppEnquiry(enq);
-              setIsWhatsAppOpen(true);
-            }}
-            onCallTenant={handleCallTenant}
-          />
+          <EnquiriesView />
         )}
 
-        {activeTab === 'visits' && (
-          <VisitsView
-            visits={visits}
-            onUpdateVisitStatus={handleUpdateVisitStatus}
-            onRescheduleVisit={(v) => {
-              setScheduleVisitEnquiry({
-                id: `ENQ-${Date.now()}`,
-                tenantName: v.visitorName,
-                tenantPhone: v.visitorPhone,
-                pgId: v.pgId,
-                pgName: v.pgName,
-                roomType: 'Walkthrough',
-                moveInDate: v.visitDate,
-                status: 'VISIT SCHEDULED',
-                createdDate: 'Today'
-              });
-              setIsScheduleVisitOpen(true);
-            }}
-          />
-        )}
+        {activeTab === 'visits' && <VisitsView />}
 
         {activeTab === 'availability' && (
           <AvailabilityView
-            pgListings={pgListings}
-            onUpdateAvailability={handleUpdateAvailability}
+            pgs={realPgs}
           />
         )}
 
@@ -438,12 +272,7 @@ export default function App() {
         )}
 
         {activeTab === 'notifications' && (
-          <NotificationsView
-            notifications={notifications}
-            onMarkAllAsRead={handleMarkAllAsRead}
-            onMarkSingleAsRead={handleMarkSingleAsRead}
-            onClearNotifications={handleClearNotifications}
-          />
+          <NotificationsView onNavigate={setActiveTab} />
         )}
 
         {activeTab === 'profile' && (
@@ -451,25 +280,13 @@ export default function App() {
             profile={profile}
             onSaveProfile={(up) => setProfile((prev) => ({ ...prev, ...up }))}
             onLogout={() => {
-              setIsLoggedIn(false);
-              setActiveTab('login');
-              setAuthView('login');
+              logout.mutate();
             }}
           />
         )}
       </main>
 
       {/* Modals */}
-      <ScheduleVisitModal
-        isOpen={isScheduleVisitOpen}
-        enquiry={scheduleVisitEnquiry}
-        onClose={() => {
-          setIsScheduleVisitOpen(false);
-          setScheduleVisitEnquiry(null);
-        }}
-        onScheduleVisit={handleScheduleVisit}
-      />
-
       <WhatsAppModal
         isOpen={isWhatsAppOpen}
         enquiry={whatsAppEnquiry}
@@ -483,8 +300,18 @@ export default function App() {
       <PGDetailModal
         pg={selectedDetailPG}
         onClose={() => setSelectedDetailPG(null)}
-        onSavePG={handleSaveDetailPG}
       />
     </div>
   );
+}
+
+export default function App() {
+  useInitializeAuth();
+  const { status, principal, error } = useAuthStore();
+  React.useEffect(() => { if (status !== 'authenticated' || !principal) return; const target = principal.role === 'MERCHANT' ? '/merchant' : '/admin'; if (window.location.pathname !== target) window.history.replaceState(null, '', target); }, [status, principal]);
+  if (status === 'initializing') return <div className="min-h-screen bg-[#FAF8F4] flex items-center justify-center text-[#6B7280]">Restoring secure session…</div>;
+  if (status !== 'authenticated' || !principal) return <><LoginPage onGoToSignup={() => alert('Registration is not available yet. Please use a provisioned StayNest account.')} />{error ? <p className="fixed bottom-5 inset-x-4 text-center text-sm text-[#E56363]">{error}</p> : null}</>;
+  if (principal.role === 'MERCHANT') return <DashboardApp />;
+  if (principal.role === 'ADMIN' || principal.role === 'SUPER_ADMIN') return <AdminApp role={principal.role} />;
+  return <LoginPage onGoToSignup={() => undefined} />;
 }

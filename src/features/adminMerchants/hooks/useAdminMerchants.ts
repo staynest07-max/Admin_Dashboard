@@ -1,0 +1,3 @@
+import{useQuery}from'@tanstack/react-query';import type{MerchantListParams}from'../../../contracts/adminAccount';import{adminMerchantService as service}from'../api/adminMerchantService';
+export const adminMerchantKeys={all:['admin-merchants']as const,list:(p:MerchantListParams)=>['admin-merchants','list',p]as const,detail:(id:string)=>['admin-merchants','detail',id]as const};
+export const useAdminMerchants=(p:MerchantListParams)=>useQuery({queryKey:adminMerchantKeys.list(p),queryFn:()=>service.list(p)});export const useAdminMerchant=(id?:string)=>useQuery({queryKey:adminMerchantKeys.detail(id??''),queryFn:()=>service.detail(id!),enabled:Boolean(id)});

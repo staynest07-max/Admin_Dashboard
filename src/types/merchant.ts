@@ -99,7 +99,7 @@ export type PGStatus =
   | 'Paused'
   | 'Inactive';
 
-export type EnquiryStatus = 'NEW' | 'CONTACTED' | 'VISIT SCHEDULED' | 'BOOKED' | 'CLOSED';
+export type EnquiryStatus = import('../contracts/merchantEnquiry').MerchantEnquiryStatus;
 
 export interface EnquiryItem {
   id: string;
@@ -116,7 +116,7 @@ export interface EnquiryItem {
 }
 
 export type VisitCategory = 'Today' | 'Upcoming' | 'Completed' | 'Cancelled';
-export type VisitStatus = 'Pending' | 'Confirmed' | 'Completed' | 'Cancelled';
+export type VisitStatus = import('../contracts/merchantVisit').MerchantVisitStatus;
 
 export interface VisitItem {
   id: string;

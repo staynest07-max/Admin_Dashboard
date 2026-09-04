@@ -1,0 +1,4 @@
+import{configureAuthRecovery}from'../../api/client';import{queryClient}from'../../query/client';import{useAuthStore}from'../../stores/authStore';import{authService}from'./api/authService';import{authMessage}from'./errors';let flight:Promise<void>|null=null;
+export async function clearSession(credentials=true){if(credentials)await authService.clearCredentials();queryClient.clear();useAuthStore.getState().unauthenticated()}
+export function initializeSession(){if(flight)return flight;flight=(async()=>{const store=useAuthStore.getState();store.begin();try{const principal=await authService.restore();if(principal){queryClient.setQueryData(['auth','me'],principal);store.authenticated(principal)}else store.unauthenticated()}catch(error){await authService.clearCredentials();store.unauthenticated(authMessage(error))}})();return flight}
+export const installRecovery=()=>configureAuthRecovery({refresh:async()=>{await authService.refresh()},invalid:()=>clearSession(true)});

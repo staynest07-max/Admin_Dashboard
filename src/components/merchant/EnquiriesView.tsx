@@ -1,243 +1,29 @@
-import React, { useState } from 'react';
-import { 
-  MessageSquare, 
-  Phone, 
-  CalendarDays, 
-  CheckCircle2, 
-  XCircle, 
-  Search, 
-  Clock, 
-  UserCheck, 
-  Building2,
-  ExternalLink,
-  ChevronRight
-} from 'lucide-react';
-import { EnquiryItem, EnquiryStatus } from '../../types/merchant';
+import { useMemo, useState } from 'react';
+import { Building2, MessageSquare, RefreshCw, X } from 'lucide-react';
+import { ApiError } from '../../api/errors';
+import type { MerchantEnquiryStatus } from '../../contracts/merchantEnquiry';
+import { useMerchantEnquiries,useMerchantEnquiry,useUpdateMerchantEnquiry } from '../../features/merchantEnquiries/hooks/useMerchantEnquiries';
+import { displayEnquiryStatus,formatEnquiryDate } from '../../features/merchantEnquiries/mapper';
+import { allowedEnquiryTransitions } from '../../features/merchantEnquiries/transitions';
 
-interface EnquiriesViewProps {
-  enquiries: EnquiryItem[];
-  onUpdateEnquiryStatus: (id: string, newStatus: EnquiryStatus) => void;
-  onOpenScheduleVisit: (enquiry: EnquiryItem) => void;
-  onOpenWhatsApp: (enquiry: EnquiryItem) => void;
-  onCallTenant: (tenantPhone: string) => void;
+const statuses: Array<'ALL'|MerchantEnquiryStatus>=['ALL','NEW','CONTACTED','VISIT_SCHEDULED','CLOSED','CANCELLED','REJECTED','NO_RESPONSE'];
+const message=(error:unknown)=>error instanceof ApiError?(error.status===409?'The enquiry changed elsewhere. The latest state has been refreshed.':error.message):'Unable to load enquiries. Please try again.';
+const Badge=({status}:{status:MerchantEnquiryStatus})=><span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#E8F1FA] text-[#527DAF] border border-[#6F9BD1]/30">{displayEnquiryStatus(status)}</span>;
+const Field=({label,value}:{label:string;value:string})=><div><span className="block text-[11px] text-[#6B7280]">{label}</span><span className="font-semibold text-[#2F3A35]">{value}</span></div>;
+export const EnquiryState=({title,text,retry}:{title:string;text:string;retry?:()=>void})=><div className="bg-white border border-[#EAE8E4] rounded-[24px] p-12 text-center"><MessageSquare className="w-10 h-10 mx-auto text-[#9CA3AF]"/><h3 className="font-bold mt-3">{title}</h3><p className="text-xs text-[#6B7280] mt-1">{text}</p>{retry&&<button onClick={retry} className="mt-4 px-4 py-2 rounded-xl bg-[#7B9D8A] text-white text-xs font-semibold mx-auto flex gap-1"><RefreshCw className="w-4 h-4"/>Retry</button>}</div>;
+
+export function EnquiriesView(){
+ const list=useMerchantEnquiries(),update=useUpdateMerchantEnquiry();
+ const[filter,setFilter]=useState<(typeof statuses)[number]>('ALL'),[search,setSearch]=useState(''),[id,setId]=useState<string>(),[success,setSuccess]=useState('');
+ const detail=useMerchantEnquiry(id);
+ const items=useMemo(()=>(list.data??[]).filter(e=>(filter==='ALL'||e.status===filter)&&(!search.trim()||[e.user.name,e.user.phone,e.pg.name].some(v=>v.toLowerCase().includes(search.toLowerCase())))),[list.data,filter,search]);
+ const change=(enquiryId:string,status:MerchantEnquiryStatus)=>{setSuccess('');update.mutate({id:enquiryId,status},{onSuccess:()=>setSuccess(`Enquiry marked ${displayEnquiryStatus(status)}.`)})};
+ return <div className="space-y-6 animate-in fade-in duration-200">
+  <div><h1 className="text-2xl font-bold text-[#2F3A35]">Prospective Tenant Enquiries</h1><p className="text-xs text-[#6B7280]">Review tenant interest and keep each enquiry status current.</p></div>
+  <div className="bg-white border rounded-[24px] p-4 flex flex-col md:flex-row gap-3 justify-between"><div className="flex gap-1.5 overflow-x-auto">{statuses.map(s=><button key={s} onClick={()=>setFilter(s)} className={`px-3 py-1.5 rounded-full text-xs whitespace-nowrap ${filter===s?'bg-[#7B9D8A] text-white':'border'}`}>{s==='ALL'?'All':displayEnquiryStatus(s)}</button>)}</div><input aria-label="Search enquiries" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search tenant, phone or PG..." className="px-3.5 py-1.5 text-xs border rounded-[18px]"/></div>
+  {success&&<p role="status" className="p-3 bg-[#E8F5EC] text-[#2E7D32] rounded-xl">{success}</p>}
+  {update.isError&&<p role="alert" className="p-3 bg-[#FDECEC] text-[#B33A3A] rounded-xl">{message(update.error)}</p>}
+  {list.isPending?<p className="p-12 text-center text-sm text-[#6B7280]">Loading enquiries…</p>:list.isError?<EnquiryState title="Could not load enquiries" text={message(list.error)} retry={()=>void list.refetch()}/>:items.length===0?<EnquiryState title="No enquiries found" text={(list.data?.length??0)===0?'New tenant enquiries will appear here.':'No enquiries match this filter.'}/>:<div className="grid md:grid-cols-2 gap-4">{items.map(e=><article key={e.id} className="bg-white border border-[#EAE8E4] rounded-[24px] p-5 space-y-4"><div className="flex justify-between gap-2"><div><h3 className="font-bold">{e.user.name}</h3><p className="text-xs text-[#7B9D8A] flex gap-1"><Building2 className="w-4 h-4"/>{e.pg.name}</p></div><Badge status={e.status}/></div><div className="grid grid-cols-2 gap-2 p-3 border rounded-2xl text-xs"><Field label="Room" value={e.details.roomType??'Not specified'}/><Field label="Move-in" value={formatEnquiryDate(e.details.moveInDate)}/><Field label="Created" value={formatEnquiryDate(e.createdAt)}/><Field label="Phone" value={e.user.phone}/></div><div className="flex flex-wrap gap-2"><button onClick={()=>setId(e.id)} className="px-3 py-1.5 rounded-xl bg-[#7B9D8A] text-white text-xs">View details</button>{allowedEnquiryTransitions(e.status).map(s=><button disabled={update.isPending} key={s} onClick={()=>change(e.id,s)} className="px-3 py-1.5 rounded-xl border text-xs disabled:opacity-50">{update.isPending&&update.variables?.id===e.id?'Updating…':displayEnquiryStatus(s)}</button>)}</div></article>)}</div>}
+  {id&&<div className="fixed inset-0 z-50 bg-black/35 p-4 flex items-center justify-center" onMouseDown={()=>setId(undefined)}><section className="w-full max-w-xl bg-white rounded-[24px] p-6 space-y-4" onMouseDown={e=>e.stopPropagation()}><div className="flex justify-between"><h2 className="text-xl font-bold">Enquiry details</h2><button aria-label="Close details" onClick={()=>setId(undefined)}><X/></button></div>{detail.isPending?<p>Loading details…</p>:detail.isError?<EnquiryState title="Could not load enquiry" text={message(detail.error)} retry={()=>void detail.refetch()}/>:detail.data?<><div className="flex justify-between"><div><h3 className="font-bold">{detail.data.user.name}</h3><p className="text-xs text-[#7B9D8A]">{detail.data.pg.name}</p></div><Badge status={detail.data.status}/></div><div className="grid grid-cols-2 gap-3 text-sm"><Field label="Phone" value={detail.data.user.phone}/><Field label="Email" value={detail.data.user.email??'Not provided'}/><Field label="Room" value={detail.data.details.roomType??'Not specified'}/><Field label="Move-in" value={formatEnquiryDate(detail.data.details.moveInDate)}/><Field label="Created" value={formatEnquiryDate(detail.data.createdAt)}/><Field label="Updated" value={formatEnquiryDate(detail.data.updatedAt)}/></div><div className="p-3 bg-[#FAF8F4] rounded-xl text-sm"><b>Message</b><p>{detail.data.details.message??'No message provided.'}</p></div></>:null}</section></div>}
+ </div>
 }
-
-export const EnquiriesView: React.FC<EnquiriesViewProps> = ({
-  enquiries,
-  onUpdateEnquiryStatus,
-  onOpenScheduleVisit,
-  onOpenWhatsApp,
-  onCallTenant
-}) => {
-  const [selectedFilter, setSelectedFilter] = useState<string>('All');
-  const [searchQuery, setSearchQuery] = useState<string>('');
-
-  const filterTabs = ['All', 'New', 'Contacted', 'Visit Scheduled', 'Booked', 'Closed'];
-
-  const filteredEnquiries = enquiries.filter((e) => {
-    if (selectedFilter !== 'All') {
-      const targetStatus = selectedFilter.toUpperCase().replace(' ', '_');
-      if (selectedFilter === 'New' && e.status !== 'NEW') return false;
-      if (selectedFilter === 'Contacted' && e.status !== 'CONTACTED') return false;
-      if (selectedFilter === 'Visit Scheduled' && e.status !== 'VISIT SCHEDULED') return false;
-      if (selectedFilter === 'Booked' && e.status !== 'BOOKED') return false;
-      if (selectedFilter === 'Closed' && e.status !== 'CLOSED') return false;
-    }
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchName = e.tenantName.toLowerCase().includes(q);
-      const matchPG = e.pgName.toLowerCase().includes(q);
-      const matchPhone = e.tenantPhone.toLowerCase().includes(q);
-      if (!matchName && !matchPG && !matchPhone) return false;
-    }
-
-    return true;
-  });
-
-  const getStatusBadge = (status: EnquiryStatus) => {
-    switch (status) {
-      case 'NEW':
-        return (
-          <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#FFF5E8] text-[#C9952A] border border-[#C9952A]/30 animate-pulse">
-            NEW ENQUIRY
-          </span>
-        );
-      case 'CONTACTED':
-        return (
-          <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#E8F1FA] text-[#6F9BD1] border border-[#6F9BD1]/30">
-            CONTACTED
-          </span>
-        );
-      case 'VISIT SCHEDULED':
-        return (
-          <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#DDE9E0] text-[#7B9D8A] border border-[#D8C29B]">
-            VISIT SCHEDULED
-          </span>
-        );
-      case 'BOOKED':
-        return (
-          <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#E8F5EC] text-[#5DA271] border border-[#5DA271]/30">
-            BOOKED
-          </span>
-        );
-      case 'CLOSED':
-        return (
-          <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#F3F1EC] text-[#6B7280] border border-[#EAE8E4]">
-            CLOSED
-          </span>
-        );
-    }
-  };
-
-  return (
-    <div className="space-y-6 animate-in fade-in duration-200">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-[#2F3A35]">Prospective Tenant Enquiries</h1>
-          <p className="text-xs text-[#6B7280] mt-0.5">
-            Respond to prospective tenants, make phone calls, send WhatsApp messages, or schedule room visits.
-          </p>
-        </div>
-      </div>
-
-      {/* Filter Tabs & Search Bar */}
-      <div className="bg-white border border-[#EAE8E4] rounded-[24px] p-4 shadow-soft-sm space-y-4">
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-            {filterTabs.map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setSelectedFilter(tab)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
-                  selectedFilter === tab
-                    ? 'bg-[#7B9D8A] text-white shadow-soft-sm'
-                    : 'bg-[#FFFFFF] text-[#6B7280] border border-[#EAE8E4] hover:bg-[#F3F1EC]'
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-
-          <div className="w-full md:w-64">
-            <input
-              type="text"
-              placeholder="Search tenant name or PG..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-3.5 py-1.5 text-xs bg-[#FFFFFF] border border-[#EAE8E4] rounded-[18px] focus:outline-none focus:border-[#7B9D8A]"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Enquiries Cards List */}
-      {filteredEnquiries.length === 0 ? (
-        <div className="bg-white border border-[#EAE8E4] rounded-[24px] p-12 text-center shadow-soft-sm">
-          <MessageSquare className="w-12 h-12 text-[#9CA3AF] mx-auto mb-3" />
-          <h3 className="text-base font-bold text-[#2F3A35]">No enquiries found</h3>
-          <p className="text-xs text-[#6B7280] max-w-sm mx-auto mt-1">
-            No tenant enquiries match the selected filter.
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filteredEnquiries.map((enq) => (
-            <div
-              key={enq.id}
-              className="bg-white border border-[#EAE8E4] rounded-[24px] p-5 shadow-soft-sm hover:shadow-soft-md transition-all flex flex-col justify-between space-y-4"
-            >
-              {/* Card Top Header */}
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-base text-[#2F3A35]">{enq.tenantName}</h3>
-                  </div>
-                  <p className="text-xs font-medium text-[#7B9D8A] mt-0.5 flex items-center gap-1">
-                    <Building2 className="w-3.5 h-3.5" />
-                    <span>{enq.pgName}</span>
-                  </p>
-                </div>
-                {getStatusBadge(enq.status)}
-              </div>
-
-              {/* Detail Info Grid */}
-              <div className="grid grid-cols-2 gap-2.5 p-3 rounded-2xl bg-[#FFFFFF] border border-[#F3F1EC] text-xs">
-                <div>
-                  <span className="text-[11px] text-[#6B7280] block">Interested Room</span>
-                  <span className="font-bold text-[#2F3A35]">{enq.roomType}</span>
-                </div>
-                <div>
-                  <span className="text-[11px] text-[#6B7280] block">Move-in Date</span>
-                  <span className="font-bold text-[#2F3A35] font-number">{enq.moveInDate}</span>
-                </div>
-                <div className="col-span-2">
-                  <span className="text-[11px] text-[#6B7280] block">Phone Number</span>
-                  <span className="font-bold text-[#2F3A35] font-number">{enq.tenantPhone}</span>
-                </div>
-              </div>
-
-              {enq.notes && (
-                <div className="p-2.5 rounded-xl bg-[#FAF8F4] border border-[#D8C29B] text-xs text-[#2F3A35]">
-                  <span className="font-semibold">Note: </span>
-                  <span>{enq.notes}</span>
-                </div>
-              )}
-
-              {/* Card Actions Toolbar */}
-              <div className="pt-3 border-t border-[#F3F1EC] flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => onCallTenant(enq.tenantPhone)}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#5DA271] text-white text-xs font-semibold hover:bg-[#2E7D32] transition-all"
-                  >
-                    <Phone className="w-3.5 h-3.5" />
-                    <span>Call</span>
-                  </button>
-
-                  <button
-                    onClick={() => onOpenWhatsApp(enq)}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#25D366] text-white text-xs font-semibold hover:opacity-90 transition-all"
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    <span>WhatsApp</span>
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => onOpenScheduleVisit(enq)}
-                    className="px-3 py-1.5 rounded-xl bg-[#DDE9E0] text-[#7B9D8A] border border-[#D8C29B] text-xs font-semibold hover:bg-[#DDE9E0] transition-all"
-                  >
-                    Schedule Visit
-                  </button>
-
-                  {enq.status === 'NEW' && (
-                    <button
-                      onClick={() => onUpdateEnquiryStatus(enq.id, 'CONTACTED')}
-                      className="px-2.5 py-1.5 rounded-xl bg-[#FFFFFF] border border-[#EAE8E4] text-[#2F3A35] hover:text-[#7B9D8A] text-xs font-semibold"
-                    >
-                      Mark Contacted
-                    </button>
-                  )}
-
-                  {enq.status !== 'CLOSED' && (
-                    <button
-                      onClick={() => onUpdateEnquiryStatus(enq.id, 'CLOSED')}
-                      className="p-1.5 rounded-xl text-[#6B7280] hover:text-[#E56363] hover:bg-[#FDECEC]"
-                      title="Close Enquiry"
-                    >
-                      <XCircle className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
