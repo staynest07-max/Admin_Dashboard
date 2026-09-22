@@ -42,10 +42,11 @@ import { toVisitItem } from './features/merchantVisits/mapper';
 import { useMerchantNotifications, useMerchantUnreadCount } from './features/merchantNotifications/hooks/useMerchantNotifications';
 import { toLegacyNotification } from './features/merchantNotifications/mapper';
 import { AdminApp } from './components/admin/AdminApp';
+import { isAdminRole, navigateToPrincipalDashboard } from './features/auth/routing';
 
-function DashboardApp() {
+export function MerchantApp() {
   // Navigation State
-  const [activeTab, setActiveTab] = useState<DashboardTab>('login');
+  const [activeTab, setActiveTab] = useState<DashboardTab>('dashboard');
 
   // Auth & Onboarding State
   const logout = useLogout();
@@ -308,10 +309,15 @@ function DashboardApp() {
 export default function App() {
   useInitializeAuth();
   const { status, principal, error } = useAuthStore();
-  React.useEffect(() => { if (status !== 'authenticated' || !principal) return; const target = principal.role === 'MERCHANT' ? '/merchant' : '/admin'; if (window.location.pathname !== target) window.history.replaceState(null, '', target); }, [status, principal]);
+  React.useEffect(() => {
+    if (status === 'authenticated' && principal) {
+      navigateToPrincipalDashboard(principal);
+    }
+  }, [status, principal]);
+
   if (status === 'initializing') return <div className="min-h-screen bg-[#FAF8F4] flex items-center justify-center text-[#6B7280]">Restoring secure session…</div>;
   if (status !== 'authenticated' || !principal) return <><LoginPage onGoToSignup={() => alert('Registration is not available yet. Please use a provisioned StayNest account.')} />{error ? <p className="fixed bottom-5 inset-x-4 text-center text-sm text-[#E56363]">{error}</p> : null}</>;
-  if (principal.role === 'MERCHANT') return <DashboardApp />;
-  if (principal.role === 'ADMIN' || principal.role === 'SUPER_ADMIN') return <AdminApp role={principal.role} />;
-  return <LoginPage onGoToSignup={() => undefined} />;
+  if (principal.role === 'MERCHANT') return <MerchantApp />;
+  if (isAdminRole(principal.role)) return <AdminApp role={principal.role} />;
+  return <div role="alert">This account cannot access the StayNest dashboard.</div>;
 }
