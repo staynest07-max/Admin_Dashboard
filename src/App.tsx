@@ -308,7 +308,12 @@ function DashboardApp() {
 export default function App() {
   useInitializeAuth();
   const { status, principal, error } = useAuthStore();
-  React.useEffect(() => { if (status !== 'authenticated' || !principal) return; const target = principal.role === 'MERCHANT' ? '/merchant' : '/admin'; if (window.location.pathname !== target) window.history.replaceState(null, '', target); }, [status, principal]);
+  React.useEffect(() => {
+    if (status !== 'authenticated' || !principal) return;
+    const root = import.meta.env.BASE_URL.replace(/\/$/, '');
+    const target = `${root}${principal.role === 'MERCHANT' ? '/merchant' : '/admin'}`;
+    if (window.location.pathname !== target) window.history.replaceState(null, '', target);
+  }, [status, principal]);
   if (status === 'initializing') return <div className="min-h-screen bg-[#FAF8F4] flex items-center justify-center text-[#6B7280]">Restoring secure session…</div>;
   if (status !== 'authenticated' || !principal) return <><LoginPage onGoToSignup={() => alert('Registration is not available yet. Please use a provisioned StayNest account.')} />{error ? <p className="fixed bottom-5 inset-x-4 text-center text-sm text-[#E56363]">{error}</p> : null}</>;
   if (principal.role === 'MERCHANT') return <DashboardApp />;

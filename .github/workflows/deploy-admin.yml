@@ -33,7 +33,13 @@ jobs:
         run: npm ci
 
       - name: Build Admin Dashboard
-        run: npm run build
+        env:
+          VITE_API_BASE_URL: https://stay-mate.tail4aeac8.ts.net/api/v1
+          VITE_BASE: /Admin_Dashboard/
+        run: |
+          npm run build
+          touch dist/.nojekyll
+          cp dist/index.html dist/404.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
